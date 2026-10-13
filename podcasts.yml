@@ -1,0 +1,48 @@
+name: Momentum Podcast Picks
+on:
+  workflow_dispatch:
+  schedule:
+    # Approx. evening US Eastern time; scheduled Actions can be delayed.
+    - cron: '17 2 * * *'
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: podcast-pages
+  cancel-in-progress: false
+
+jobs:
+  recommend:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get podcast engine files
+        uses: actions/checkout@v4
+      - name: Unpack uploaded Momentum source
+        run: unzip -q Momentum-Source.zip -d workspace
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Test recommendation logic (offline)
+        run: |
+          cd workspace/podcast_engine
+          python -m unittest -q test_engine.py
+      - name: Run free recommendation engine
+        run: python workspace/podcast_engine/recommend.py
+      - name: Upload recommendation page
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: workspace/site
+  deploy:
+    needs: recommend
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Publish daily JSON feed
+        id: deployment
+        uses: actions/deploy-pages@v4
